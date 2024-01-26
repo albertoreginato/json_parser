@@ -8,6 +8,12 @@
 
 using std::string;
 
+json& parse_list(std::istream& lhs, json& rhs);
+json& parse_dict(std::istream& lhs, json& rhs);
+json& parse_string(std::istream& lhs, json& rhs);
+json& parse_number(std::istream& lhs, json& rhs);
+json& parse_boolean(std::istream& lhs, json& rhs);
+bool stream_is_true(std::istream& lhs);
 
 
 class list {
@@ -415,5 +421,69 @@ void json::insert(std::pair<std::string, json> const& x) {
         throw json_exception{"not a dictionary"};
     pimpl->dict_j.prepend(x);
 }
+
+std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
+    return lhs;
+}
+
+std::istream& operator>>(std::istream& lhs, json& rhs) {
+    char c = 0;
+    lhs >> c;  
+    if(c == '[') {
+        rhs.set_list();
+        rhs = parse_list(lhs, rhs);
+    } else if (c == '{') {
+        rhs.set_dictionary();
+        rhs = parse_dict(lhs, rhs);
+    } else if (c == '\"')
+        rhs = parse_string(lhs, rhs);
+    else if (c >= '0' and c <= '9') {
+        lhs.putback(c);
+        rhs = parse_number(lhs, rhs);
+    } else if (lhs.rdbuf()->in_avail() == 0)  // se lo stream è vuoto !
+        throw json_exception{"empty stream"};
+    else if (stream_is_true(lhs))
+        rhs.set_bool(true);
+    else if (!stream_is_true(lhs))
+        rhs.set_bool(false);
+    else
+        throw json_exception{"stream not valid"};
+    return lhs;
+}
+
+json& parse_list(std::istream& lhs, json& rhs) {
+
+    return rhs;
+}
+
+json& parse_dict(std::istream& lhs, json& rhs) {
+    
+    return rhs;
+}
+
+json& parse_number(std::istream& lhs, json& rhs) {
+    double num;
+    lhs >> num;
+    rhs.set_number(num);
+    return rhs;
+}
+
+json& parse_string(std::istream& lhs, json& rhs) {
+    std::string str;
+    std::getline(lhs, str, '\"');
+    rhs.set_string(str);
+    return rhs;
+}
+
+bool stream_is_true(std::istream& lhs) {
+    std::string str;
+    lhs >> str;
+    if (str == "true")
+        return true;
+    return false;
+}
+
+
+
 
 
