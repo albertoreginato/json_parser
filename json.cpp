@@ -12,8 +12,9 @@ json& parse_list(std::istream& lhs, json& rhs);
 json& parse_dict(std::istream& lhs, json& rhs);
 json& parse_string(std::istream& lhs, json& rhs);
 json& parse_number(std::istream& lhs, json& rhs);
-json& parse_boolean(std::istream& lhs, json& rhs);
+bool parse_boolean(std::istream& lhs, json& rhs);
 bool stream_is_true(std::istream& lhs);
+void parse_string(std::istream& lhs, std::string& str);
 
 
 class list {
@@ -133,6 +134,8 @@ void list::append(json el) {
     else 
         head = new_one;
     tail = new_one;
+
+
 }
 
 list& list::operator=(const list& x) {
@@ -217,7 +220,7 @@ json const& dictionary::operator[](std::string const& key) const {
         throw json_exception{"invalid key"};
     }
     pcell pc = head;
-    while (pc->next != nullptr) {
+    while (pc != nullptr) {
         if (pc->info.first == key)
             return pc->info.second;
         pc = pc->next;
@@ -226,18 +229,21 @@ json const& dictionary::operator[](std::string const& key) const {
 }
 
 json& dictionary::operator[](std::string const& key) {
+    std::cout << "entrato dictionary::operator[]" << std::endl;
     if (key == "") {
         throw json_exception{"invalid key"};
     }
     pcell pc = head;
-    while (pc->next != nullptr) {
+    while (pc != nullptr) {
         if (pc->info.first == key)
             return pc->info.second;
         pc = pc->next;
     }
+    json jsn;
+    std::cout << "fine while del dictionary::operator[] " << std::endl;
     std::pair<string, json> el;
     el.first = key;
-    el.second = json();
+    el.second = jsn;
     append(el);
     return tail->info.second;
 }
@@ -259,10 +265,9 @@ json::json(json const& s) {
     *this = s;  // operatore =
 }
 json::json(json&& s) {
-
+    
 }
 json::~json() {
-    // std::cout << "distruttore json chiamato" << std::endl;
     delete pimpl;
 }
 
@@ -321,12 +326,14 @@ bool json::is_null() const{
 
 
 json const& json::operator[](std::string const& key) const {
+    std::cout << "entrato operator[] const" << std::endl;
     if (!is_dictionary()) {
         throw json_exception{"It is not a dictionary"};
     }
     return pimpl->dict_j[key];
 }
 json& json::operator[](std::string const& key) {
+    std::cout << "entrato operator[]" << std::endl;
     if (!is_dictionary()) {
         throw json_exception{"It is not a dictionary"};
     }
@@ -409,37 +416,36 @@ void json::set_dictionary() {
 void json::push_front(json const& x) {
     if (!is_list())
         throw json_exception{"not a list"};
-    pimpl->list_j.append(x);
+    pimpl->list_j.prepend(x);
 }
 void json::push_back(json const& x) {
     if (!is_list())
         throw json_exception{"not a list"};
-    pimpl->list_j.prepend(x);
+    pimpl->list_j.append(x);
 }
 void json::insert(std::pair<std::string, json> const& x) {
     if (!is_dictionary())
         throw json_exception{"not a dictionary"};
-    pimpl->dict_j.prepend(x);
+    pimpl->dict_j.append(x);
 }
 
 std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
     return lhs;
 }
 
+
 std::istream& operator>>(std::istream& lhs, json& rhs) {
     char c = 0;
     lhs >> c;  
     if(c == '[') {
-        rhs.set_list();
-        rhs = parse_list(lhs, rhs);
+        parse_list(lhs, rhs);
     } else if (c == '{') {
-        rhs.set_dictionary();
-        rhs = parse_dict(lhs, rhs);
+        parse_dict(lhs, rhs);
     } else if (c == '\"')
-        rhs = parse_string(lhs, rhs);
+        parse_string(lhs, rhs);
     else if (c >= '0' and c <= '9') {
         lhs.putback(c);
-        rhs = parse_number(lhs, rhs);
+        parse_number(lhs, rhs);
     } else if (lhs.rdbuf()->in_avail() == 0)  // se lo stream è vuoto !
         throw json_exception{"empty stream"};
     else if (stream_is_true(lhs))
@@ -452,12 +458,101 @@ std::istream& operator>>(std::istream& lhs, json& rhs) {
 }
 
 json& parse_list(std::istream& lhs, json& rhs) {
+    rhs.set_list();
+    char c = 0;
+    lhs >> c;
 
+    while (c != ']') {
+        if (c != ',') {
+            json jsn;
+            if (c == '[') {
+                parse_list(lhs, jsn);
+            } else if (c == '{') {
+                parse_dict(lhs, jsn);
+            } else if (c == '\"') {
+                parse_string(lhs, jsn);
+            } else if (c == 't') {
+                jsn.set_bool(true);
+                lhs.ignore(3);  // Ignora il resto di "true"
+            } else if (c == 'f') {
+                jsn.set_bool(false);
+                lhs.ignore(4);  // Ignora il resto di "false"
+            } else if (c == 'n') {
+                jsn.set_null();
+                lhs.ignore(3);  // Ignora il resto di "null"
+            } else if (c >= '0' and c <= '9'){
+                lhs.putback(c);
+                parse_number(lhs, jsn);
+            } else
+                throw json_exception{"Invalid Json"};
+            rhs.push_back(jsn);
+            lhs >> c;
+            if (c != ']' && c != ',')
+                throw json_exception{"Invalid Json"};
+            if (c == ',') {
+                lhs >> c;  // Leggi il carattere successivo dopo la virgola
+                if (c == ']')
+                    throw json_exception{"Invalid Json"};
+            }
+        } else
+            throw json_exception{"Invalid Json"};
+    }
     return rhs;
 }
 
 json& parse_dict(std::istream& lhs, json& rhs) {
-    
+    rhs.set_dictionary();
+    char c = 0;
+    lhs >> c;
+    while (c != '}') {
+        if (c != ',') {
+            if (c == '\"') {
+                // Parsing della chiave utilizzando il nuovo metodo parse_string
+                std::string key;
+                parse_string(lhs, key);
+                lhs >> c; // Salta il separatore dei due punti
+                if (c != ':')
+                    throw json_exception{"Invalid Json: expected colon after key"};
+                lhs >> c; // Leggi il primo carattere del valore
+                std::cout << "c: " << c << std::endl;
+
+                // Parsing del valore
+                json val;
+                if (c == '[') {
+                    parse_list(lhs, val);
+                } else if (c == '{') {
+                    parse_dict(lhs, val);
+                } else if (c == '\"') {
+                    parse_string(lhs, val);
+                } else if (c == 't') {
+                    val.set_bool(true);
+                    lhs.ignore(3);  // Ignora il resto di "true"
+                } else if (c == 'f') {
+                    val.set_bool(false);
+                    lhs.ignore(4);  // Ignora il resto di "false"
+                } else if (c == 'n') {
+                    val.set_null();
+                    lhs.ignore(3);  // Ignora il resto di "null"
+                } else if (c >= '0' and c <= '9') {
+                    lhs.putback(c);
+                    parse_number(lhs, val);
+                } else
+                    throw json_exception{"Invalid Json"};
+                rhs[key] = val;
+                lhs >> c;
+                std::cout << "c: " << c << std::endl;
+                if (c != '}' && c != ',')
+                    throw json_exception{"Invalid Json"};
+                if (c == ',') {
+                    lhs >> c;  // Leggi il carattere successivo dopo la virgola
+                    if (c == '}')
+                        throw json_exception{"Invalid Json"};
+                }
+            } else
+                throw json_exception{"Invalid Json"};
+        } else
+            throw json_exception{"Invalid Json"};
+    }
     return rhs;
 }
 
@@ -465,15 +560,28 @@ json& parse_number(std::istream& lhs, json& rhs) {
     double num;
     lhs >> num;
     rhs.set_number(num);
+    std::cout << "num: " << num << std::endl;
     return rhs;
 }
 
 json& parse_string(std::istream& lhs, json& rhs) {
     std::string str;
-    std::getline(lhs, str, '\"');
+    char c;
+    lhs >> c;
+    char prec = ' ';
+    while(c != '\"' || (prec == '\\' && c == '\"')) {
+        str += c;
+        if (prec == c && c == '\\')
+            prec = ' ';
+        else    
+            prec = c;
+        lhs.get(c);
+    }
     rhs.set_string(str);
     return rhs;
 }
+
+
 
 bool stream_is_true(std::istream& lhs) {
     std::string str;
@@ -481,6 +589,20 @@ bool stream_is_true(std::istream& lhs) {
     if (str == "true")
         return true;
     return false;
+}
+
+void parse_string(std::istream& lhs, std::string& str){
+    char c;
+    lhs >> c;
+    char prec = ' ';
+    while(c != '\"' || (prec == '\\' && c == '\"')) {
+        str += c;
+        if (prec == c && c == '\\')
+            prec = ' ';
+        else    
+            prec = c;
+        lhs.get(c);
+    }
 }
 
 
