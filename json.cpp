@@ -716,7 +716,7 @@ std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
     } else if (rhs.is_string())
         lhs << "\"" << rhs.get_string() << "\"";
     else if (rhs.is_number())
-        lhs << rhs.get_number();
+        lhs << std::fixed <<rhs.get_number();
     else if (rhs.is_bool())
         lhs << (rhs.get_bool() ? "true" : "false");
     else if (rhs.is_null())
