@@ -19,23 +19,21 @@ void parse_string(std::istream& lhs, std::string& str);
 
 class list {
     public:
-    
+
         list();
         ~list();
         list(const list& s);
-
         void append(json elem);
         void prepend(json elem);
-        
-
         list& operator=(const list& x);
 
-        
     private:
+
         friend struct json::list_iterator;
         friend struct json::const_list_iterator;
         friend json::list_iterator json::begin_list();
         friend json::const_list_iterator json::begin_list() const;
+
         struct cell {
             json info;
             cell* next;
@@ -49,6 +47,7 @@ class list {
 
 class dictionary {
     public: 
+
         dictionary();
         ~dictionary();
         dictionary(const dictionary& s);
@@ -62,10 +61,12 @@ class dictionary {
         json& operator[](std::string const& key);
 
     private:
+
         friend struct json::dictionary_iterator;
         friend struct json::const_dictionary_iterator;
         friend json::dictionary_iterator json::begin_dictionary();
         friend json::const_dictionary_iterator json::begin_dictionary() const;
+
         struct cell {
             std::pair<std::string, json> info;
             cell* next;
@@ -80,7 +81,7 @@ class dictionary {
 
 
 struct json::impl {
-    int type_j;
+    int type_j; // utilizzo una variabile di tipo int per gestire la tipologia di json
     list list_j;
     dictionary dict_j;
     std::string string_j;
@@ -88,9 +89,7 @@ struct json::impl {
     bool bool_j;
 };
 
-
-
-// LIST METHODS             ************************************************************************
+// List methods
 
 list::list() {
     head = nullptr;
@@ -149,7 +148,6 @@ void list::append(json el) {
 
 list& list::operator=(const list& x) {
     if (this != &x) {
-        // destroy my list
         destroy(head);
         head = copy(x.head);
     }
@@ -157,7 +155,7 @@ list& list::operator=(const list& x) {
 }
 
 
-// DICTIONARY METHODS ************************************************************************
+// Dictionary methods
 
 dictionary::dictionary() {
     head = nullptr;
@@ -217,7 +215,6 @@ void dictionary::append(std::pair<string, json> el) {
 
 dictionary& dictionary::operator=(const dictionary& x) {
     if (this != &x) {
-        // destroy my dictionary
         destroy(head);
         head = copy(x.head);
     }
@@ -255,9 +252,7 @@ json& dictionary::operator[](std::string const& key) {
     return tail->info.second;
 }
 
-
-
-// JSON METHODS ************************************************************************
+// Json methods
 
 json::json(){
     pimpl = new impl;
@@ -269,17 +264,17 @@ json::json(){
 
 json::json(json const& s) {
     pimpl = new impl;
-    *this = s;  // operatore =
+    *this = s;  
 }
-json::json(json&& s) {
 
+json::json(json&& rhs) {
+    pimpl = rhs.pimpl;  
+    rhs.pimpl = nullptr;
 }
+
 json::~json() {
     delete pimpl;
 }
-
-
-// OVERLOADING OPERATORI
 
 json& json::operator=(json const& s){
     if(this != &s){
@@ -425,7 +420,7 @@ void json::insert(std::pair<std::string, json> const& x) {
     pimpl->dict_j.append(x);
 }
 
-/*  IMPLEMENTAZIONE LIST ITERATOR  */
+/*  IMPLEMENTAZIONE ITERATORI  */
 
 struct json::list_iterator {
     using value_type = json;
@@ -443,8 +438,8 @@ struct json::list_iterator {
     bool operator!=(list_iterator const& rhs) const;
     operator bool() const;
 
-private:
-    list::pcell m_ptr;
+    private:
+        list::pcell m_ptr;
 };
 
 json::list_iterator::list_iterator(list::pcell ptr) : m_ptr(ptr) {}
@@ -512,8 +507,8 @@ struct json::const_list_iterator {
     bool operator!=(const_list_iterator const& rhs) const;
     operator bool() const;
 
-private:
-    list::pcell m_ptr;
+    private:
+        list::pcell m_ptr;
 };
 
 json::const_list_iterator::const_list_iterator(list::pcell ptr) : m_ptr(ptr) {}
@@ -579,8 +574,8 @@ struct json::dictionary_iterator {
     bool operator!=(dictionary_iterator const& rhs) const;
     operator bool() const;
 
-private:
-    dictionary::pcell m_ptr;
+    private:
+        dictionary::pcell m_ptr;
 };
 
 json::dictionary_iterator::dictionary_iterator(dictionary::pcell ptr) : m_ptr(ptr) {}
@@ -646,8 +641,8 @@ struct json::const_dictionary_iterator {
     bool operator!=(const_dictionary_iterator const& rhs) const;
     operator bool() const;
 
-private:
-    dictionary::pcell m_ptr;
+    private:
+        dictionary::pcell m_ptr;
 };
 
 json::const_dictionary_iterator::const_dictionary_iterator(dictionary::pcell ptr) : m_ptr(ptr) {}
@@ -697,7 +692,6 @@ json::const_dictionary_iterator json::end_dictionary() const {
     return const_dictionary_iterator{nullptr};
 }
 
-
 std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
     if (rhs.is_list()) {
         lhs << "[";
@@ -733,7 +727,6 @@ std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
     return lhs;
 }
 
-
 std::istream& operator>>(std::istream& lhs, json& rhs) {
     char c = 0;
     lhs >> c;  
@@ -747,13 +740,13 @@ std::istream& operator>>(std::istream& lhs, json& rhs) {
         lhs.putback(c);
         parse_number(lhs, rhs);
     } else if (lhs.rdbuf()->in_avail() == 0)  // se lo stream è vuoto !
-        throw json_exception{"empty stream"};
+        throw json_exception{"Empty stream"};
     else if (stream_is_true(lhs))
         rhs.set_bool(true);
     else if (!stream_is_true(lhs))
         rhs.set_bool(false);
     else
-        throw json_exception{"stream not valid"};
+        throw json_exception{"Stream not valid"};
     return lhs;
 }
 
@@ -773,14 +766,14 @@ json& parse_list(std::istream& lhs, json& rhs) {
                 parse_string(lhs, jsn);
             } else if (c == 't') {
                 jsn.set_bool(true);
-                lhs.ignore(3);  // Ignora il resto di "true"
+                lhs.ignore(3); 
             } else if (c == 'f') {
                 jsn.set_bool(false);
-                lhs.ignore(4);  // Ignora il resto di "false"
+                lhs.ignore(4); 
             } else if (c == 'n') {
                 jsn.set_null();
-                lhs.ignore(3);  // Ignora il resto di "null"
-            } else if (c >= '0' and c <= '9'){
+                lhs.ignore(3); 
+            } else if ((c == '-') || (c >= '0' and c <= '9')){
                 lhs.putback(c);
                 parse_number(lhs, jsn);
             } else
@@ -788,7 +781,7 @@ json& parse_list(std::istream& lhs, json& rhs) {
             rhs.push_back(jsn);
             lhs >> c;
             if (c != ']' && c != ',')
-                throw json_exception{"Invalid Json"};
+                throw json_exception{"Expected ']' or ','."};
             if (c == ',') {
                 lhs >> c;  // Leggi il carattere successivo dopo la virgola
                 if (c == ']')
@@ -807,15 +800,13 @@ json& parse_dict(std::istream& lhs, json& rhs) {
     while (c != '}') {
         if (c != ',') {
             if (c == '\"') {
-                // Parsing della chiave utilizzando il nuovo metodo parse_string
                 std::string key;
                 parse_string(lhs, key);
-                lhs >> c; // Salta il separatore dei due punti
+                lhs >> c;
                 if (c != ':')
-                    throw json_exception{"Invalid Json: expected colon after key"};
-                lhs >> c; // Leggi il primo carattere del valore
+                    throw json_exception{"Invalid Json"};
+                lhs >> c;
 
-                // Parsing del valore
                 json val;
                 if (c == '[') {
                     parse_list(lhs, val);
@@ -825,24 +816,28 @@ json& parse_dict(std::istream& lhs, json& rhs) {
                     parse_string(lhs, val);
                 } else if (c == 't') {
                     val.set_bool(true);
-                    lhs.ignore(3);  // Ignora il resto di "true"
+                    lhs.ignore(3);  
                 } else if (c == 'f') {
                     val.set_bool(false);
-                    lhs.ignore(4);  // Ignora il resto di "false"
+                    lhs.ignore(4); 
                 } else if (c == 'n') {
                     val.set_null();
-                    lhs.ignore(3);  // Ignora il resto di "null"
-                } else if (c >= '0' and c <= '9') {
+                    lhs.ignore(3);
+                } else if ((c == '-') || (c >= '0' and c <= '9')) {
                     lhs.putback(c);
                     parse_number(lhs, val);
                 } else
                     throw json_exception{"Invalid Json"};
-                rhs[key] = val;
+                std::pair<std::string, json> p;
+                p.first = key;
+                p.second = val;
+                rhs.insert(p);
+                //rhs[key] = val;
                 lhs >> c;
                 if (c != '}' && c != ',')
-                    throw json_exception{"Invalid Json"};
+                    throw json_exception{"Expected ']' or ','."};
                 if (c == ',') {
-                    lhs >> c;  // Leggi il carattere successivo dopo la virgola
+                    lhs >> c; 
                     if (c == '}')
                         throw json_exception{"Invalid Json"};
                 }
@@ -877,8 +872,6 @@ json& parse_string(std::istream& lhs, json& rhs) {
     rhs.set_string(str);
     return rhs;
 }
-
-
 
 bool stream_is_true(std::istream& lhs) {
     std::string str;
