@@ -23,6 +23,8 @@ class list {
         list();
         ~list();
         list(const list& s);
+        //list(list&& s);
+
         void append(json elem);
         void prepend(json elem);
         list& operator=(const list& x);
@@ -51,6 +53,8 @@ class dictionary {
         dictionary();
         ~dictionary();
         dictionary(const dictionary& s);
+        //dictionary(dictionary&& s);
+        
 
         void append(std::pair<string, json> elem);
         void prepend(std::pair<string, json> elem);
@@ -112,7 +116,11 @@ list::list(const list& s) {
     tail = nullptr;
     head = copy(s.head);
 }
-
+/*
+list::list(list&& rhs) {
+	*this = std::move(rhs); //chiama il move assignment
+}
+*/
 list::pcell list::copy(pcell s) {
     if (!s)
         return nullptr;
@@ -178,7 +186,12 @@ dictionary::dictionary(const dictionary& s) {
     tail = nullptr;
     head = copy(s.head);
 }
-
+/*
+dictionary::dictionary(dictionary&& s) {
+    std::cout << "chiamato move costructor del dictionary" << std::endl;
+	*this = std::move(s); //chiama il move assignment
+}
+*/
 dictionary::pcell dictionary::copy(pcell s) {
     if (!s)
         return nullptr;
@@ -267,9 +280,9 @@ json::json(json const& s) {
     *this = s;  
 }
 
-json::json(json&& rhs) {
-    pimpl = rhs.pimpl;  
-    rhs.pimpl = nullptr;
+json::json(json&& s) {
+    pimpl = new impl;
+    *this = std::move(s);
 }
 
 json::~json() {
@@ -297,11 +310,12 @@ json& json::operator=(json const& s){
 }
 
 json& json::operator=(json&& s) {
-    if(this != &s){
-        delete pimpl;
-        pimpl = new impl;
-        pimpl = s.pimpl;
-        s.pimpl = nullptr;
+    if (this != &s) {
+        delete pimpl;  // Cancella l'oggetto precedente
+        //pimpl = new impl;
+        pimpl = s.pimpl;  // Copia il puntatore
+        s.pimpl = nullptr;  // Assicurati che l'altro oggetto non punti più a nulla
+        s.pimpl = new impl;
     }
     return *this;
 }
