@@ -292,7 +292,6 @@ json::json(){
     pimpl->type_j = 0;
     pimpl->num_j = 0;
     pimpl->string_j = "";
-    // list e dictionary hanno i loro default constructor
 }
 
 json::json(json const& s) {
