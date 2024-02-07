@@ -23,11 +23,11 @@ class list {
         list();
         ~list();
         list(const list& s);
-        //list(list&& s);
-
+        list(list&& s);
         void append(json elem);
         void prepend(json elem);
         list& operator=(const list& x);
+        list& operator=(list&& x);
 
     private:
 
@@ -53,13 +53,13 @@ class dictionary {
         dictionary();
         ~dictionary();
         dictionary(const dictionary& s);
-        //dictionary(dictionary&& s);
-        
+        dictionary(dictionary&& s);
 
         void append(std::pair<string, json> elem);
         void prepend(std::pair<string, json> elem);
 
         dictionary& operator=(const dictionary& x);
+        dictionary& operator=(dictionary&& x);
 
         json const& operator[](std::string const& key) const;
         json& operator[](std::string const& key);
@@ -116,11 +116,7 @@ list::list(const list& s) {
     tail = nullptr;
     head = copy(s.head);
 }
-/*
-list::list(list&& rhs) {
-	*this = std::move(rhs); //chiama il move assignment
-}
-*/
+
 list::pcell list::copy(pcell s) {
     if (!s)
         return nullptr;
@@ -130,6 +126,10 @@ list::pcell list::copy(pcell s) {
         dest->next = copy(s->next);
         return dest;
     }
+}
+
+list::list(list&& s) {
+    *this = std::move(s);
 }
 
 void list::prepend(json el) {
@@ -162,6 +162,16 @@ list& list::operator=(const list& x) {
     return *this;
 }
 
+list& list::operator=(list&& x) {
+    if (this != &x) {
+        destroy(head);
+        head = x.head;
+        tail = x.tail;
+        x.head = x.tail = nullptr;
+    }
+    return *this;
+}
+
 
 // Dictionary methods
 
@@ -186,12 +196,7 @@ dictionary::dictionary(const dictionary& s) {
     tail = nullptr;
     head = copy(s.head);
 }
-/*
-dictionary::dictionary(dictionary&& s) {
-    std::cout << "chiamato move costructor del dictionary" << std::endl;
-	*this = std::move(s); //chiama il move assignment
-}
-*/
+
 dictionary::pcell dictionary::copy(pcell s) {
     if (!s)
         return nullptr;
@@ -202,6 +207,10 @@ dictionary::pcell dictionary::copy(pcell s) {
         dest->next = copy(s->next);
         return dest;
     }
+}
+
+dictionary::dictionary(dictionary&& s){
+    *this = std::move(s);
 }
 
 void dictionary::prepend(std::pair<string, json> el) {
@@ -230,6 +239,17 @@ dictionary& dictionary::operator=(const dictionary& x) {
     if (this != &x) {
         destroy(head);
         head = copy(x.head);
+    }
+    return *this;
+}
+
+dictionary& dictionary::operator=(dictionary&& x) {
+    if (this != &x) {
+        destroy(head);
+        head = x.head;
+        tail = x.tail;
+
+        x.head = x.tail = nullptr;
     }
     return *this;
 }
@@ -281,7 +301,7 @@ json::json(json const& s) {
 }
 
 json::json(json&& s) {
-    pimpl = new impl;
+    pimpl = new impl;  
     *this = std::move(s);
 }
 
@@ -310,12 +330,17 @@ json& json::operator=(json const& s){
 }
 
 json& json::operator=(json&& s) {
-    if (this != &s) {
-        delete pimpl;  // Cancella l'oggetto precedente
-        //pimpl = new impl;
-        pimpl = s.pimpl;  // Copia il puntatore
-        s.pimpl = nullptr;  // Assicurati che l'altro oggetto non punti più a nulla
-        s.pimpl = new impl;
+    if(this != &s){
+        delete pimpl;
+        pimpl = new impl;
+        pimpl->type_j = s.pimpl->type_j;
+        if (s.is_null()) {/*niente*/}
+        else if (s.is_list()) pimpl->list_j = std::move(s.pimpl->list_j);
+        else if (s.is_dictionary()) pimpl->dict_j = std::move(s.pimpl->dict_j);
+        else if (s.is_string()) pimpl->string_j = std::move(s.pimpl->string_j);
+        else if (s.is_number()) pimpl->num_j = std::move(s.pimpl->num_j);
+        else if (s.is_number()) pimpl->bool_j = std::move(s.pimpl->bool_j);
+
     }
     return *this;
 }
@@ -573,9 +598,10 @@ json::const_list_iterator json::end_list() const {
 }
 
 struct json::dictionary_iterator {
-    using value_type = json;
-    using pointer = json*;
-    using reference = json&;
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = std::pair<std::string, json>;
+    using pointer = std::pair<std::string, json>*;
+    using reference = std::pair<std::string, json>&;
 
     dictionary_iterator(dictionary::pcell ptr);
 
@@ -588,18 +614,18 @@ struct json::dictionary_iterator {
     bool operator!=(dictionary_iterator const& rhs) const;
     operator bool() const;
 
-    private:
-        dictionary::pcell m_ptr;
+private:
+    dictionary::pcell m_ptr;
 };
 
 json::dictionary_iterator::dictionary_iterator(dictionary::pcell ptr) : m_ptr(ptr) {}
 
-json& json::dictionary_iterator::operator*() const {
-    return m_ptr->info.second;
+json::dictionary_iterator::reference json::dictionary_iterator::operator*() const {
+    return m_ptr->info;
 }
 
-json* json::dictionary_iterator::operator->() const {
-    return &(m_ptr->info.second);
+json::dictionary_iterator::pointer json::dictionary_iterator::operator->() const {
+    return &(m_ptr->info);
 }
 
 json::dictionary_iterator& json::dictionary_iterator::operator++() {
@@ -627,14 +653,14 @@ json::dictionary_iterator::operator bool() const {
 
 json::dictionary_iterator json::begin_dictionary() {
     if (!is_dictionary())
-        throw json_exception{"Non è un dictionary"};
+        throw json_exception{"Invalid dictionary"};
         
     return dictionary_iterator{pimpl->dict_j.head};
 }
 
 json::dictionary_iterator json::end_dictionary() {
     if (!is_dictionary())
-        throw json_exception{"Non è un dictionary"};
+        throw json_exception{"Invalid dictionary"};
         
     return dictionary_iterator{nullptr};
 }
@@ -694,20 +720,22 @@ json::const_dictionary_iterator::operator bool() const {
 
 json::const_dictionary_iterator json::begin_dictionary() const {
     if (!is_dictionary()) {
-        throw json_exception{"Non è un dictionary"};
+        throw json_exception{"Invalid dictionary"};
     }
     return const_dictionary_iterator{pimpl->dict_j.head};
 }
 
 json::const_dictionary_iterator json::end_dictionary() const {
     if (!is_dictionary()) {
-        throw json_exception{"Non è un dictionary"};
+        throw json_exception{"Invalid dictionary"};
     }
     return const_dictionary_iterator{nullptr};
 }
 
 std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
-    if (rhs.is_list()) {
+    if (rhs.is_null())
+        lhs << "null";
+    else if (rhs.is_list()) {
         lhs << "[";
         auto it = rhs.begin_list();
         while (it) {
@@ -730,14 +758,11 @@ std::ostream& operator<<(std::ostream& lhs, json const& rhs) {
     } else if (rhs.is_string())
         lhs << "\"" << rhs.get_string() << "\"";
     else if (rhs.is_number())
+        //lhs << std::fixed << std::setprecision(16) <<rhs.get_number();
         lhs << std::fixed <<rhs.get_number();
     else if (rhs.is_bool())
         lhs << (rhs.get_bool() ? "true" : "false");
-    else if (rhs.is_null())
-        lhs << "null";
-    else
-        throw json_exception{"Invalid json"};
-
+    
     return lhs;
 }
 
@@ -750,12 +775,15 @@ std::istream& operator>>(std::istream& lhs, json& rhs) {
         parse_dict(lhs, rhs);
     } else if (c == '\"')
         parse_string(lhs, rhs);
-    else if (c >= '0' and c <= '9') {
+    else if ((c == '-') || (c >= '0' and c <= '9')) {
         lhs.putback(c);
         parse_number(lhs, rhs);
-    } else if (lhs.rdbuf()->in_avail() == 0)  // se lo stream è vuoto !
-        throw json_exception{"Empty stream"};
-    else if (stream_is_true(lhs))
+        char next;
+        lhs >> next;
+        if (next > 0)    // it should be NULL
+            throw json_exception{"Number not valid"};
+        lhs.putback(c);
+    } else if (stream_is_true(lhs))
         rhs.set_bool(true);
     else if (!stream_is_true(lhs))
         rhs.set_bool(false);
@@ -846,7 +874,6 @@ json& parse_dict(std::istream& lhs, json& rhs) {
                 p.first = key;
                 p.second = val;
                 rhs.insert(p);
-                //rhs[key] = val;
                 lhs >> c;
                 if (c != '}' && c != ',')
                     throw json_exception{"Expected ']' or ','."};
@@ -867,13 +894,14 @@ json& parse_number(std::istream& lhs, json& rhs) {
     double num;
     lhs >> num;
     rhs.set_number(num);
+    
     return rhs;
 }
 
 json& parse_string(std::istream& lhs, json& rhs) {
     std::string str;
     char c;
-    lhs >> c;
+    lhs.get(c);
     char prec = ' ';
     while(c != '\"' || (prec == '\\' && c == '\"')) {
         str += c;
@@ -897,7 +925,7 @@ bool stream_is_true(std::istream& lhs) {
 
 void parse_string(std::istream& lhs, std::string& str){
     char c;
-    lhs >> c;
+    lhs.get(c);
     char prec = ' ';
     while(c != '\"' || (prec == '\\' && c == '\"')) {
         str += c;
